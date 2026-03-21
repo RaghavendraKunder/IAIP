@@ -118,70 +118,192 @@ const STREAM_OPTIONS = [
 const needsStream = (c: ClassLevel) => ["11", "12", "UG", "PG"].includes(c);
 const needsCourse = (c: ClassLevel) => c === "UG";
 
+// ─── Backend base URL ─────────────────────────────────────────────────────────
+const BASE = "http://localhost:8085/Online_Examination_System";
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AuthModal({ open, onClose }: AuthModalProps) {
+
+  // ── All useState hooks declared at the top — before any useEffect ─────────
   const [tab,  setTab]  = useState<Tab>("student");
   const [mode, setMode] = useState<Mode>("login");
   const overlayRef      = useRef<HTMLDivElement>(null);
 
-  // common
+  // submit feedback state
+  const [submitState, setSubmitState] = useState<{
+    loading: boolean;
+    error:   string;
+    success: string;
+  }>({ loading: false, error: "", success: "" });
+
+  // common fields
   const [name,     setName]     = useState("");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [confirm,  setConfirm]  = useState("");
 
-  // admin fields
+  // admin-only fields
   const [adminKey,     setAdminKey]     = useState("");
   const [adminCollege, setAdminCollege] = useState("");
 
-  // student signup only
+  // student signup fields
   const [rollNo,     setRollNo]     = useState("");
   const [college,    setCollege]    = useState("");
   const [classLevel, setClassLevel] = useState<ClassLevel>("");
   const [stream,     setStream]     = useState<Stream>("");
   const [course,     setCourse]     = useState("");
 
-  // reset all on tab/mode change
+  // ── Reset all fields + submitState when tab or mode changes ──────────────
   useEffect(() => {
     setName(""); setEmail(""); setPassword(""); setConfirm("");
     setAdminKey(""); setAdminCollege("");
     setRollNo(""); setCollege(""); setClassLevel(""); setStream(""); setCourse("");
+    setSubmitState({ loading: false, error: "", success: "" });
   }, [tab, mode]);
 
-  // reset stream + course when class changes
-  useEffect(() => { setStream(""); setCourse(""); }, [classLevel]);
+  // ── Reset stream + course when class changes ──────────────────────────────
+  useEffect(() => {
+    setStream("");
+    setCourse("");
+  }, [classLevel]);
 
-  // escape key
+  // ── Escape key closes modal ───────────────────────────────────────────────
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
-  // body scroll lock
+  // ── Body scroll lock when modal is open ──────────────────────────────────
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
+  // ── Early return after all hooks ──────────────────────────────────────────
   if (!open) return null;
 
+  // ── Derived booleans ──────────────────────────────────────────────────────
   const isSignup        = mode === "signup";
   const isStudentSignup = tab === "student" && isSignup;
   const isAdminSignup   = tab === "admin"   && isSignup;
   const showStream      = isStudentSignup && needsStream(classLevel);
   const showCourse      = isStudentSignup && needsCourse(classLevel);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ── Submit handler ────────────────────────────────────────────────────────
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Submit →", {
-      tab, mode, name, email, password,
-      ...(isStudentSignup && { rollNo, college, classLevel, stream, course }),
-      ...(isAdminSignup   && { adminCollege, adminKey }),
-      ...(tab === "admin" && !isSignup && { adminKey }),
-    });
+    setSubmitState({ loading: true, error: "", success: "" });
+
+    // ── SIGNUP ───────────────────────────────────────────────────────────────
+    if (isSignup) {
+      const payload =
+        tab === "student"
+          ? {
+              role:            "student",
+              fullName:        name,
+              rollNo,
+              email,
+              password,
+              confirmPassword: confirm,
+              collegeName:     college,
+              classLevel,
+              stream,
+              course,
+            }
+          : {
+              role:            "admin",
+              fullName:        name,
+              email,
+              password,
+              confirmPassword: confirm,
+              collegeName:     adminCollege,
+              adminAccessKey:  adminKey,
+            };
+
+      try {
+        const res  = await fetch(`${BASE}/api/register`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          setSubmitState({ loading: false, error: "", success: data.message });
+        } else {
+          setSubmitState({ loading: false, error: data.message, success: "" });
+        }
+      } catch {
+        setSubmitState({
+          loading: false,
+          error:   "Could not reach the server. Make sure Tomcat is running.",
+          success: "",
+        });
+      }
+      return;
+    }
+
+    // ── LOGIN ────────────────────────────────────────────────────────────────
+    const payload =
+      tab === "student"
+        ? {
+            role:       "student",
+            identifier: email,   // accepts roll number OR email
+            password,
+          }
+        : {
+            role:       "admin",
+            identifier: email,
+            password,
+            adminKey,
+          };
+
+    try {
+      const res  = await fetch(`${BASE}/api/login`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitState({ loading: false, error: "", success: data.message });
+        // Store session info for static HTML pages
+        if (data.role === "admin") {
+          sessionStorage.setItem("adminName",   data.adminName   || "Admin");
+          sessionStorage.setItem("adminId",     String(data.adminId || ""));
+          sessionStorage.setItem("collegeName", data.collegeName || "");
+        } else if (data.role === "student") {
+          sessionStorage.setItem("studentId",   String(data.studentId   || ""));
+          sessionStorage.setItem("studentName", data.studentName || "Student");
+          sessionStorage.setItem("rollNo",      data.rollNo      || "");
+        }
+        setTimeout(() => {
+          const TOMCAT = "http://localhost:8085/Online_Examination_System";
+          if (data.role === "admin") {
+            window.location.href = window.location.origin + "/admin-dashboard.html";
+          } else {
+            // Store student data FIRST, then redirect
+            sessionStorage.setItem("studentId",   String(data.studentId   || ""));
+            sessionStorage.setItem("studentName", data.studentName || "Student");
+            sessionStorage.setItem("rollNo",      data.rollNo      || "");
+            window.location.href = window.location.origin + "/student-dashboard.html";
+          }
+        }, 1000);
+      } else {
+        setSubmitState({ loading: false, error: data.message, success: "" });
+      }
+    } catch {
+      setSubmitState({
+        loading: false,
+        error:   "Could not reach the server. Make sure Tomcat is running.",
+        success: "",
+      });
+    }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
       ref={overlayRef}
@@ -189,7 +311,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "hsl(220 65% 8% / 0.72)", backdropFilter: "blur(6px)" }}
     >
-      {/* ── Modal shell ───────────────────────────────────────────────────────── */}
+      {/* ── Modal shell ─────────────────────────────────────────────────────── */}
       <div
         className={cn(
           "relative w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl",
@@ -204,7 +326,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           style={{ background: "linear-gradient(90deg, hsl(243,75%,58%), hsl(258,89%,66%))" }}
         />
 
-        {/* ── Header ──────────────────────────────────────────────────────────── */}
+        {/* ── Header ────────────────────────────────────────────────────────── */}
         <div className="px-7 pt-7 pb-4">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
@@ -224,11 +346,13 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             {isSignup ? "Create your account" : "Welcome back"}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {isSignup ? "Join ExamFlow and start your journey" : "Sign in to continue to your dashboard"}
+            {isSignup
+              ? "Join ExamFlow and start your journey"
+              : "Sign in to continue to your dashboard"}
           </p>
         </div>
 
-        {/* ── Role tabs ───────────────────────────────────────────────────────── */}
+        {/* ── Role tabs ─────────────────────────────────────────────────────── */}
         <div className="px-7 mb-5">
           <div className="flex rounded-xl border border-border bg-muted/40 p-1 gap-1">
             {(["student", "admin"] as Tab[]).map((t) => (
@@ -243,7 +367,9 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {t === "student" ? <Users className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                {t === "student"
+                  ? <Users className="h-4 w-4" />
+                  : <ShieldCheck className="h-4 w-4" />}
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
@@ -255,20 +381,30 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           </p>
         </div>
 
-        {/* ── Form ────────────────────────────────────────────────────────────── */}
+        {/* ── Form ──────────────────────────────────────────────────────────── */}
         <form onSubmit={handleSubmit} className="px-7 pb-4 flex flex-col gap-4">
 
           {/* Full name — any signup */}
           {isSignup && (
-            <Field label="Full Name" placeholder="e.g. Arjun Sharma" value={name} onChange={setName} />
+            <Field
+              label="Full Name"
+              placeholder="e.g. Arjun Sharma"
+              value={name}
+              onChange={setName}
+            />
           )}
 
-          {/* Roll number — student signup */}
+          {/* Roll number — student signup only */}
           {isStudentSignup && (
-            <Field label="Roll Number" placeholder="e.g. 2024CS001" value={rollNo} onChange={setRollNo} />
+            <Field
+              label="Roll Number"
+              placeholder="e.g. 2024CS001"
+              value={rollNo}
+              onChange={setRollNo}
+            />
           )}
 
-          {/* Email / Roll for login */}
+          {/* Email — or Roll+Email for student login */}
           <Field
             label={tab === "student" && !isSignup ? "Roll Number / Email" : "Email Address"}
             placeholder={
@@ -290,10 +426,9 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             />
           )}
 
-          {/* ── Admin signup: college + access key ────────────────────────────── */}
+          {/* ── Admin signup: institution + security banner + access key ────── */}
           {isAdminSignup && (
             <>
-              {/* Institution name */}
               <Field
                 label="College / Institution Name"
                 placeholder="e.g. St. Xavier's College, Mumbai"
@@ -306,8 +441,8 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
                 className="flex items-start gap-2.5 rounded-xl px-3.5 py-3 text-xs"
                 style={{
                   background: "hsl(38,92%,50%,0.08)",
-                  color: "hsl(32,95%,34%)",
-                  border: "1px solid hsl(38,92%,50%,0.25)",
+                  color:      "hsl(32,95%,34%)",
+                  border:     "1px solid hsl(38,92%,50%,0.25)",
                 }}
               >
                 <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -317,7 +452,6 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
                 </span>
               </div>
 
-              {/* Admin access key */}
               <Field
                 label="Admin Access Key"
                 type="password"
@@ -339,20 +473,19 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             />
           )}
 
-          {/* ── Stream card picker (Class 11, 12, UG, PG) ─────────────────────── */}
+          {/* ── Stream card picker (Class 11, 12, UG, PG) ─────────────────── */}
           {showStream && (
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Stream
               </label>
 
-              {/* context hint */}
               <div
                 className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
                 style={{
                   background: "hsl(250,100%,97%)",
-                  color: "hsl(258,89%,66%)",
-                  border: "1px solid hsl(258,89%,66%,0.18)",
+                  color:      "hsl(258,89%,66%)",
+                  border:     "1px solid hsl(258,89%,66%,0.18)",
                 }}
               >
                 <GraduationCap className="h-3.5 w-3.5 flex-shrink-0" />
@@ -386,15 +519,15 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             </div>
           )}
 
-          {/* ── Course field (UG only) ─────────────────────────────────────────── */}
+          {/* ── Course field (UG only) ───────────────────────────────────────── */}
           {showCourse && (
             <div className="flex flex-col gap-1.5">
               <div
                 className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
                 style={{
                   background: "hsl(142,76%,36%,0.08)",
-                  color: "hsl(142,76%,28%)",
-                  border: "1px solid hsl(142,76%,36%,0.2)",
+                  color:      "hsl(142,76%,28%)",
+                  border:     "1px solid hsl(142,76%,36%,0.2)",
                 }}
               >
                 <GraduationCap className="h-3.5 w-3.5 flex-shrink-0" />
@@ -418,7 +551,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             onChange={setPassword}
           />
 
-          {/* Confirm password — signup */}
+          {/* Confirm password — signup only */}
           {isSignup && (
             <Field
               label="Confirm Password"
@@ -429,7 +562,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             />
           )}
 
-          {/* Admin access key — admin login only (signup has its own block above) */}
+          {/* Admin access key — admin LOGIN only */}
           {tab === "admin" && !isSignup && (
             <Field
               label="Admin Access Key"
@@ -453,32 +586,83 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             </div>
           )}
 
-          {/* ── Submit ──────────────────────────────────────────────────────────── */}
+          {/* ── Error banner ───────────────────────────────────────────────────── */}
+          {submitState.error && (
+            <div
+              className="flex items-center gap-2 rounded-xl px-3.5 py-3 text-xs font-medium"
+              style={{
+                background: "hsl(0,72%,50%,0.08)",
+                color:      "hsl(0,72%,40%)",
+                border:     "1px solid hsl(0,72%,50%,0.2)",
+              }}
+            >
+              <span className="text-base">⚠️</span>
+              {submitState.error}
+            </div>
+          )}
+
+          {/* ── Success banner ─────────────────────────────────────────────────── */}
+          {submitState.success && (
+            <div
+              className="flex items-center gap-2 rounded-xl px-3.5 py-3 text-xs font-medium"
+              style={{
+                background: "hsl(142,76%,36%,0.08)",
+                color:      "hsl(142,76%,28%)",
+                border:     "1px solid hsl(142,76%,36%,0.2)",
+              }}
+            >
+              <span className="text-base">✅</span>
+              {submitState.success}
+            </div>
+          )}
+
+          {/* ── Submit button ──────────────────────────────────────────────────── */}
           <button
             type="submit"
+            disabled={submitState.loading}
             className={cn(
               "mt-1 w-full flex items-center justify-center gap-2",
               "rounded-xl py-3 px-6 text-sm font-semibold text-white",
               "transition-all duration-200 hover:-translate-y-0.5",
               "focus:outline-none focus:ring-2 focus:ring-offset-2",
+              "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0",
             )}
             style={{
               background: "linear-gradient(135deg, hsl(220,65%,18%), hsl(220,55%,28%), hsl(200,50%,30%))",
-              boxShadow: "0 4px 14px 0 hsl(243,75%,58%,0.35)",
+              boxShadow:  "0 4px 14px 0 hsl(243,75%,58%,0.35)",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                "0 6px 20px 0 hsl(243,75%,58%,0.5)";
+              if (!submitState.loading)
+                (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                  "0 6px 20px 0 hsl(243,75%,58%,0.5)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.boxShadow =
                 "0 4px 14px 0 hsl(243,75%,58%,0.35)";
             }}
           >
-            {isSignup
-              ? "Create Account"
-              : `Sign in as ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}
-            <ArrowRight className="h-4 w-4" />
+            {submitState.loading ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    className="opacity-25" cx="12" cy="12" r="10"
+                    stroke="currentColor" strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                  />
+                </svg>
+                {isSignup ? "Creating account…" : "Signing in…"}
+              </>
+            ) : (
+              <>
+                {isSignup
+                  ? "Create Account"
+                  : `Sign in as ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
           </button>
 
           {/* Divider */}
@@ -504,13 +688,13 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           </button>
         </form>
 
-        {/* Footer */}
+        {/* ── Footer ────────────────────────────────────────────────────────── */}
         <div
           className="mx-7 mb-6 mt-2 rounded-xl px-4 py-3 text-xs text-center"
           style={{
             background: "hsl(250,100%,97%)",
-            color: "hsl(258,89%,66%)",
-            border: "1px solid hsl(258,89%,66%,0.2)",
+            color:      "hsl(258,89%,66%)",
+            border:     "1px solid hsl(258,89%,66%,0.2)",
           }}
         >
           🔒 Secured with end-to-end encryption · SOC 2 compliant

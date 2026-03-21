@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ExamFlow — Admin Panel</title>
+  <link rel="stylesheet" href="css/admin-style.css"/>
+
+  <style>
+    /* ── Navbar right side ── */
+    header { justify-content: space-between; }
+    .nav-right {
+      display: flex; align-items: center; gap: 14px;
+      margin-left: auto;
+    }
+    #navAdminName {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted-foreground);
+    }
+    .btn-logout {
+      background: var(--destructive-light);
+      border: 1px solid #fca5a5;
+      color: var(--destructive);
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.18s;
+    }
+    .btn-logout:hover { background: #fecaca; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 2rem; right: 2rem;
+      padding: 0.85rem 1.4rem;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #fff;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      max-width: 340px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #16a34a; }
+    #toast.error   { background: #dc2626; }
+    #toast.info    { background: #6366f1; }
+
+    /* ── Publishing overlay ── */
+    #overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,0.6);
+      backdrop-filter: blur(4px);
+      z-index: 9998;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    #overlay.show { display: flex; }
+    #publishingOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.65);
+      backdrop-filter: blur(4px);
+      z-index: 9998;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    #publishingOverlay.show { display: flex; }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- Publishing overlay -->
+  <div id="publishingOverlay">
+    <div class="spinner"></div>
+    <span id="publishingMsg">Publishing exam…</span>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="shell">
+
+    <!-- ── Header ── -->
+    <header>
+      <div class="logo-mark">E</div>
+      <div><div class="logo-text">Exam<span>Flow</span></div></div>
+      <div class="badge">Admin Panel</div>
+      <div class="nav-right">
+        <span id="navAdminName"></span>
+        <a href="admin-students.html"
+           style="background:var(--primary-light);border:1px solid #c7d2fe;
+                  padding:6px 14px;border-radius:var(--radius);
+                  font-family:var(--font-display);font-size:12px;font-weight:600;
+                  text-decoration:none;color:var(--primary-dark);transition:all .2s;"
+           onmouseover="this.style.background='#c7d2fe'"
+           onmouseout="this.style.background='var(--primary-light)'">
+          👥 Students
+        </a>
+        <button class="btn-logout" onclick="handleLogout()">Logout</button>
+      </div>
+    </header>
+
+    <!-- ── Progress Steps ── -->
+    <div class="steps">
+      <div class="step active" id="step-1" onclick="goToStep(1)">
+        <div class="step-num">1</div><div class="step-label">Exam Info</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step-2" onclick="goToStep(2)">
+        <div class="step-num">2</div><div class="step-label">Students</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step-3" onclick="goToStep(3)">
+        <div class="step-num">3</div><div class="step-label">Questions</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step-4" onclick="goToStep(4)">
+        <div class="step-num">4</div><div class="step-label">Review</div>
+      </div>
+    </div>
+
+    <!-- ── PANEL 1: EXAM INFO ── -->
+    <div class="panel active" id="panel-1">
+      <div class="section-title">Exam Configuration</div>
+      <div class="section-sub">Set the exam title, timing, and deadline before adding students and questions.</div>
+      <div class="card">
+        <div class="form-row single">
+          <div class="field">
+            <label>Exam Title</label>
+            <input type="text" id="examTitle" placeholder="e.g. Java Programming — Unit 1"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Subject / Course</label>
+            <input type="text" id="examSubject" placeholder="e.g. Computer Science"/>
+          </div>
+          <div class="field">
+            <label>Total Marks</label>
+            <input type="number" id="totalMarks" placeholder="e.g. 50" min="1"/>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="form-row three">
+          <div class="field">
+            <label>Max Duration (minutes)</label>
+            <input type="number" id="duration" placeholder="e.g. 60" min="1"/>
+            <div class="hint">Time limit per attempt</div>
+          </div>
+          <div class="field">
+            <label>Deadline Date</label>
+            <input type="date" id="deadlineDate"/>
+            <div class="hint">Last date to take the exam</div>
+          </div>
+          <div class="field">
+            <label>Deadline Time</label>
+            <input type="time" id="deadlineTime"/>
+            <div class="hint">Cutoff time on deadline date</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Number of Questions</label>
+            <input type="number" id="numQuestions" placeholder="e.g. 10" min="1" max="50"
+                   oninput="syncQuestionCount(this.value)"/>
+          </div>
+          <div class="field">
+            <label>Number of Students</label>
+            <input type="number" id="numStudents" placeholder="e.g. 30" min="1"
+                   oninput="syncStudentCount(this.value)"/>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="validateStep1()">Next — Add Students →</button>
+      </div>
+    </div>
+
+    <!-- ── PANEL 2: STUDENTS ── -->
+    <div class="panel" id="panel-2">
+      <div class="section-title">Student Roster <span class="count-chip" id="studentCountChip">0 students</span></div>
+      <div class="section-sub">Enter each student's name and roll number.</div>
+      <div class="card" style="padding-bottom:20px;">
+        <div id="studentList" class="student-list"></div>
+        <button class="btn-add" onclick="addStudentRow()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Add Another Student
+        </button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goToStep(1)">← Back</button>
+        <button class="btn btn-primary" onclick="goToStep(3)">Next — Add Questions →</button>
+      </div>
+    </div>
+
+    <!-- ── PANEL 3: QUESTIONS ── -->
+    <div class="panel" id="panel-3">
+      <div class="section-title">Question Bank <span class="count-chip" id="questionCountChip">0 questions</span></div>
+      <div class="section-sub">Write each question, fill in the four options, and mark the correct answer.</div>
+      <div id="questionList"></div>
+      <button class="btn-add" onclick="addQuestionCard()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Add Another Question
+      </button>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goToStep(2)">← Back</button>
+        <button class="btn btn-primary" onclick="buildReview()">Next — Review & Submit →</button>
+      </div>
+    </div>
+
+    <!-- ── PANEL 4: REVIEW ── -->
+    <div class="panel" id="panel-4">
+      <div class="section-title">Review & Publish</div>
+      <div class="section-sub">Confirm all details before publishing the exam to students.</div>
+      <div class="card">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Exam Summary</div>
+        <div class="review-grid" id="reviewGrid"></div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">
+          Questions <span class="count-chip" id="reviewQCount"></span>
+        </div>
+        <ul class="q-review-list" id="reviewQuestions"></ul>
+      </div>
+      <div class="card" style="margin-top:0">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">
+          Students <span class="count-chip" id="reviewSCount"></span>
+        </div>
+        <ul class="q-review-list" id="reviewStudents"></ul>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goToStep(3)">← Back</button>
+        <button class="btn btn-success" onclick="publishExam()">✓ Publish Exam</button>
+      </div>
+    </div>
+
+    <!-- ── PANEL 5: SUCCESS ── -->
+    <div class="panel" id="panel-5">
+      <div class="success-screen">
+        <div class="success-icon">✓</div>
+        <h2>Exam Published!</h2>
+        <p id="successMsg">Your exam has been saved and is now available to enrolled students.</p>
+        <button class="btn btn-primary" onclick="resetAll()">Create Another Exam</button>
+      </div>
+    </div>
+
+  </div><!-- /shell -->
+
+  <script src="js/admin-script.js"></script>
+</body>
+</html>

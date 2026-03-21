@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard — ExamFlow</title>
+  <link rel="stylesheet" href="css/admin-style.css"/>
+  <style>
+    /* ── Dashboard-specific styles ── */
+
+    /* Stats row */
+    .dash-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 640px) { .dash-stats { grid-template-columns: 1fr; } }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 2);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-xs);
+      transition: box-shadow 0.2s, border-color 0.2s;
+      cursor: pointer;
+    }
+    .stat-card:hover { box-shadow: var(--shadow-md); border-color: #c7d2fe; }
+    .stat-icon {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0;
+    }
+    .stat-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.8rem; font-weight: 700; line-height: 1;
+    }
+    .stat-card p {
+      font-size: 12px; color: var(--muted-foreground);
+      margin-top: 3px; font-weight: 600;
+    }
+
+    /* Nav tabs */
+    .dash-tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .dash-tab {
+      padding: 10px 20px;
+      font-family: var(--font-display);
+      font-size: 13px; font-weight: 600;
+      color: var(--muted-foreground);
+      border: none; background: none;
+      cursor: pointer;
+      border-bottom: 2.5px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.2s;
+    }
+    .dash-tab:hover { color: var(--foreground); }
+    .dash-tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* Tab panels */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Welcome */
+    .welcome-banner {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: calc(var(--radius) * 2);
+      padding: 24px 32px;
+      margin-bottom: 28px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      position: relative; overflow: hidden;
+    }
+    .welcome-banner::before {
+      content:''; position:absolute;
+      top:-40px; right:-40px;
+      width:180px; height:180px;
+      border-radius:50%;
+      background:rgba(255,255,255,0.07);
+    }
+    .welcome-text h2 {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 700;
+      letter-spacing: -0.3px; margin-bottom: 3px;
+    }
+    .welcome-text p { font-size: 13px; opacity: 0.8; }
+    .welcome-actions { display: flex; gap: 8px; flex-wrap: wrap; position: relative; z-index: 1; }
+    .btn-hero {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 8px 16px;
+      font-family: var(--font-display);
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-hero:hover { background: rgba(255,255,255,0.28); }
+
+    /* Batch grid */
+    .batch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    /* Batch card */
+    .batch-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 2);
+      overflow: hidden;
+      box-shadow: var(--shadow-xs);
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+      cursor: pointer;
+    }
+    .batch-card:hover { box-shadow: var(--shadow-md); border-color: #c7d2fe; transform: translateY(-2px); }
+    .batch-card-top {
+      height: 8px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+    }
+    .batch-card-body { padding: 16px 18px; }
+    .batch-name {
+      font-family: var(--font-display);
+      font-size: 15px; font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .batch-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+    .batch-chip {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border: 1px solid #c7d2fe;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-family: var(--font-mono);
+      font-size: 11px; font-weight: 500;
+    }
+    .batch-footer {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .student-count {
+      font-family: var(--font-display);
+      font-size: 13px; font-weight: 700;
+      color: var(--foreground);
+    }
+    .btn-icon {
+      background: none; border: none;
+      cursor: pointer; color: var(--muted-foreground);
+      font-size: 1rem; padding: 4px 6px;
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    .btn-icon:hover { background: var(--destructive-light); color: var(--destructive); }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 3);
+      padding: 32px;
+      width: 90%; max-width: 520px;
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      animation: popIn 0.2s ease;
+    }
+    @keyframes popIn { from{transform:scale(0.95);opacity:0} to{transform:scale(1);opacity:1} }
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 18px; font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .modal-sub { font-size: 13px; color: var(--muted-foreground); margin-bottom: 24px; }
+    .modal-close {
+      float: right; background: none; border: none;
+      font-size: 1.2rem; cursor: pointer;
+      color: var(--muted-foreground); line-height: 1;
+      margin-top: -4px;
+    }
+    .modal-close:hover { color: var(--destructive); }
+
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-full { grid-column: 1 / -1; }
+    .field-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--muted-foreground); margin-bottom: 5px;
+    }
+    .field-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--foreground);
+      font-family: var(--font-body);
+      font-size: 14px; padding: 9px 12px;
+      outline: none; transition: all 0.2s;
+    }
+    .field-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light);
+      background: var(--card);
+    }
+
+    /* Student list in modal */
+    .student-list-modal { max-height: 260px; overflow-y: auto; margin-top: 14px; }
+    .student-item {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 6px;
+      background: var(--surface);
+      transition: border-color 0.15s;
+    }
+    .student-item:hover { border-color: #c7d2fe; }
+    .student-info { display: flex; flex-direction: column; gap: 2px; }
+    .s-name { font-size: 13px; font-weight: 600; }
+    .s-roll { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); }
+
+    /* Exam table */
+    .exam-table { width: 100%; border-collapse: collapse; }
+    .exam-table th {
+      background: var(--surface);
+      padding: 10px 16px;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--muted-foreground);
+      border-bottom: 1px solid var(--border);
+    }
+    .exam-table td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--surface);
+    }
+    .exam-table tr:hover td { background: var(--surface); }
+
+    /* Empty */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted-foreground);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state h3 {
+      font-family: var(--font-display);
+      font-size: 16px; font-weight: 700;
+      color: var(--foreground); margin-bottom: 6px;
+    }
+    .empty-state p { font-size: 13px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 2rem; right: 2rem;
+      padding: 0.85rem 1.4rem;
+      border-radius: 12px; font-size: 0.875rem;
+      font-weight: 600; color: #fff;
+      z-index: 9999; opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    #toast.show   { opacity: 1; transform: translateY(0); }
+    #toast.t-ok  { background: #16a34a; }
+    #toast.t-err { background: #dc2626; }
+    #toast.t-info{ background: var(--primary); }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: var(--radius);
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  </style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- Create Batch Modal -->
+<div class="modal-backdrop" id="createBatchModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('createBatchModal')">✕</button>
+    <div class="modal-title">Create New Batch</div>
+    <div class="modal-sub">Set up a batch of students by standard, division and stream.</div>
+
+    <div class="form-grid">
+      <div class="form-full">
+        <div class="field-label">Batch Name *</div>
+        <input class="field-input" id="batchName"
+               placeholder="e.g. CS-2024-A or Class 10 Division A"/>
+      </div>
+      <div>
+        <div class="field-label">Standard / Class *</div>
+        <select class="field-input" id="batchStandard" onchange="onStandardChange()">
+          <option value="">— Select —</option>
+          <optgroup label="School">
+            <option value="1">Class 1</option>
+            <option value="2">Class 2</option>
+            <option value="3">Class 3</option>
+            <option value="4">Class 4</option>
+            <option value="5">Class 5</option>
+            <option value="6">Class 6</option>
+            <option value="7">Class 7</option>
+            <option value="8">Class 8</option>
+            <option value="9">Class 9</option>
+            <option value="10">Class 10</option>
+            <option value="11">Class 11</option>
+            <option value="12">Class 12</option>
+          </optgroup>
+          <optgroup label="College">
+            <option value="UG">Under Graduate (UG)</option>
+            <option value="PG">Post Graduate (PG)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Division / Section</div>
+        <select class="field-input" id="batchDivision">
+          <option value="">— None —</option>
+          <option value="A">Division A</option>
+          <option value="B">Division B</option>
+          <option value="C">Division C</option>
+          <option value="D">Division D</option>
+          <option value="E">Division E</option>
+        </select>
+      </div>
+      <div id="streamField">
+        <div class="field-label">Stream</div>
+        <select class="field-input" id="batchStream">
+          <option value="">— None —</option>
+          <option value="Science">🔬 Science</option>
+          <option value="Arts">🎨 Arts</option>
+          <option value="Commerce">💼 Commerce</option>
+        </select>
+      </div>
+      <div id="courseField" class="form-full" style="display:none;">
+        <div class="field-label">Course / Degree Programme</div>
+        <input class="field-input" id="batchCourse"
+               placeholder="e.g. B.Sc Computer Science"/>
+      </div>
+      <div class="form-full">
+        <div class="field-label">Academic Year</div>
+        <input class="field-input" id="batchYear"
+               placeholder="e.g. 2024-25"/>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-outline" style="flex:1;"
+              onclick="closeModal('createBatchModal')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1;"
+              onclick="submitCreateBatch()">✓ Create Batch</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Batch Students Modal -->
+<div class="modal-backdrop" id="viewBatchModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('viewBatchModal')">✕</button>
+    <div class="modal-title" id="viewBatchTitle">Batch Students</div>
+    <div class="modal-sub" id="viewBatchSub"></div>
+
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="btn btn-primary" style="font-size:12px;padding:7px 14px;"
+              onclick="openAddStudentModal()">+ Add Students</button>
+      <span id="viewBatchCount" class="count-chip" style="align-self:center;"></span>
+    </div>
+
+    <div class="student-list-modal" id="viewStudentList">
+      <div style="text-align:center;padding:20px;color:var(--muted-foreground);">
+        Loading…
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Students Modal -->
+<div class="modal-backdrop" id="addStudentModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('addStudentModal')">✕</button>
+    <div class="modal-title">Add Students to Batch</div>
+    <div class="modal-sub">Select registered students to add to this batch.</div>
+
+    <input class="field-input" id="studentSearch"
+           placeholder="🔍 Search by name or roll number…"
+           oninput="filterStudents(this.value)"
+           style="margin-bottom:12px;"/>
+
+    <div class="student-list-modal" id="unassignedStudentList">
+      <div style="text-align:center;padding:20px;color:var(--muted-foreground);">
+        Loading…
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div class="logo-mark">E</div>
+      <div class="logo-text">Exam<span>Flow</span></div>
+      <div class="badge">Admin Dashboard</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="navAdminName"
+            style="font-family:var(--font-mono);font-size:12px;color:var(--muted-foreground);"></span>
+      <button onclick="handleLogout()"
+        style="background:var(--destructive-light);border:1px solid #fca5a5;
+               color:var(--destructive);padding:6px 16px;border-radius:var(--radius);
+               font-family:var(--font-display);font-size:12px;font-weight:600;cursor:pointer;">
+        Logout
+      </button>
+    </div>
+  </header>
+
+  <!-- Welcome Banner -->
+  <div class="welcome-banner">
+    <div class="welcome-text" style="position:relative;z-index:1;">
+      <h2 id="welcomeH">Welcome back! 👋</h2>
+      <p id="welcomeSub">Manage your batches, students and exams from here.</p>
+    </div>
+    <div class="welcome-actions">
+      <button class="btn-hero" onclick="openModal('createBatchModal')">
+        ➕ New Batch
+      </button>
+      <a href="/admin-panel.html" class="btn-hero" style="text-decoration:none;">
+        📝 Create Exam
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="dash-stats">
+    <div class="stat-card" onclick="switchTab('batches')">
+      <div class="stat-icon" style="background:var(--primary-light);">👥</div>
+      <div><h3 id="sBatches">—</h3><p>Batches</p></div>
+    </div>
+    <div class="stat-card" onclick="switchTab('students')">
+      <div class="stat-icon" style="background:var(--accent-light);">🎓</div>
+      <div><h3 id="sStudents">—</h3><p>Total Students</p></div>
+    </div>
+    <div class="stat-card" onclick="switchTab('exams')">
+      <div class="stat-icon" style="background:var(--success-light);">📋</div>
+      <div><h3 id="sExams">—</h3><p>Exams</p></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="dash-tabs">
+    <button class="dash-tab active" id="tab-batches" onclick="switchTab('batches')">
+      👥 Batches
+    </button>
+    <button class="dash-tab" id="tab-exams" onclick="switchTab('exams')">
+      📋 Exams
+    </button>
+    <button class="dash-tab" id="tab-students" onclick="switchTab('students')">
+      🎓 All Students
+    </button>
+  </div>
+
+  <!-- Tab: Batches -->
+  <div class="tab-panel active" id="panel-batches">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <span class="section-title" style="font-family:var(--font-display);font-size:16px;font-weight:700;">
+        Your Batches
+      </span>
+      <button class="btn btn-primary" style="font-size:13px;"
+              onclick="openModal('createBatchModal')">
+        ➕ New Batch
+      </button>
+    </div>
+    <div id="batchGrid" class="batch-grid">
+      <!-- Skeleton -->
+      <div style="height:140px;border-radius:calc(var(--radius)*2);" class="skeleton"></div>
+      <div style="height:140px;border-radius:calc(var(--radius)*2);" class="skeleton"></div>
+      <div style="height:140px;border-radius:calc(var(--radius)*2);" class="skeleton"></div>
+    </div>
+  </div>
+
+  <!-- Tab: Exams -->
+  <div class="tab-panel" id="panel-exams">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <span class="section-title" style="font-family:var(--font-display);font-size:16px;font-weight:700;">
+        All Exams
+      </span>
+      <a href="/admin-panel.html" class="btn btn-primary"
+         style="font-size:13px;text-decoration:none;">
+        ➕ Create Exam
+      </a>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="exam-table" id="examTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Title</th>
+            <th>Duration</th>
+            <th>Marks</th>
+            <th>Deadline</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="examTableBody">
+          <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted-foreground);">
+            Loading…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab: All Students -->
+  <div class="tab-panel" id="panel-students">
+    <div style="margin-bottom:16px;">
+      <span class="section-title" style="font-family:var(--font-display);font-size:16px;font-weight:700;">
+        All Students
+      </span>
+    </div>
+    <div id="allStudentsGrid" class="batch-grid">
+      <div style="text-align:center;padding:60px;color:var(--muted-foreground);grid-column:1/-1;">
+        Select the Students tab to load data.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+  const BASE      = "http://localhost:8085/Online_Examination_System";
+  const adminId   = sessionStorage.getItem("adminId")   || "";
+  const adminName = sessionStorage.getItem("adminName") || "Admin";
+  const college   = sessionStorage.getItem("collegeName") || "";
+
+  let allBatches   = [];
+  let allExams     = [];
+  let currentBatch = null;
+  let unassigned   = [];
+
+  // ── On load ─────────────────────────────────────────────────────────────────
+  window.addEventListener("DOMContentLoaded", () => {
+    if (!adminId) { window.location.href = "/"; return; }
+
+    document.getElementById("navAdminName").textContent = "👤 " + adminName;
+    document.getElementById("welcomeH").textContent     = "Welcome back, " + adminName + "! 👋";
+    document.getElementById("welcomeSub").textContent   =
+      college ? college + " · Admin Dashboard" : "Admin Dashboard";
+
+    loadDashboard();
+  });
+
+  // ── Load dashboard data ──────────────────────────────────────────────────────
+  async function loadDashboard() {
+    try {
+      const res  = await fetch(
+        `${BASE}/admin/data?action=dashboard`,
+        { credentials: "include", headers: { "X-Admin-Id": adminId } }
+      );
+      const data = await res.json();
+      if (!data.success) { toast(data.message, "t-err"); return; }
+
+      // Stats
+      document.getElementById("sBatches").textContent  = data.totalBatches;
+      document.getElementById("sStudents").textContent = data.totalStudents;
+      document.getElementById("sExams").textContent    = data.totalExams;
+
+      allBatches = data.batches || [];
+      allExams   = data.exams   || [];
+
+      renderBatches();
+      renderExams();
+
+    } catch (e) {
+      console.error(e);
+      toast("Cannot reach server.", "t-err");
+    }
+  }
+
+  // ── Render batches ───────────────────────────────────────────────────────────
+  function renderBatches() {
+    const grid = document.getElementById("batchGrid");
+    grid.innerHTML = "";
+
+    if (!allBatches.length) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1;">
+          <div class="icon">📭</div>
+          <h3>No batches yet</h3>
+          <p>Click <strong>New Batch</strong> to create your first batch.</p>
+        </div>`;
+      return;
+    }
+
+    allBatches.forEach(b => {
+      const card = document.createElement("div");
+      card.className = "batch-card";
+      card.innerHTML = `
+        <div class="batch-card-top"></div>
+        <div class="batch-card-body" onclick="openViewBatch(${b.id})">
+          <div class="batch-name">${b.name}</div>
+          <div class="batch-meta">
+            <span class="batch-chip">📚 ${b.standard}</span>
+            ${b.division ? `<span class="batch-chip">🔤 Div ${b.division}</span>` : ""}
+            ${b.stream   ? `<span class="batch-chip">${streamEmoji(b.stream)} ${b.stream}</span>` : ""}
+            ${b.course   ? `<span class="batch-chip">🎓 ${b.course}</span>` : ""}
+          </div>
+          <div style="font-size:12px;color:var(--muted-foreground);">
+            Created ${shortDate(b.createdAt)}
+          </div>
+        </div>
+        <div class="batch-footer">
+          <span class="student-count">👥 ${b.studentCount} student${b.studentCount!==1?"s":""}</span>
+          <div style="display:flex;gap:4px;">
+            <button class="btn-icon" title="View students"
+                    onclick="event.stopPropagation();openViewBatch(${b.id})">👁</button>
+            <button class="btn-icon" title="Delete batch"
+                    onclick="event.stopPropagation();confirmDeleteBatch(${b.id},'${b.name}')">🗑</button>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  // ── Render exams ─────────────────────────────────────────────────────────────
+  function renderExams() {
+    const tbody = document.getElementById("examTableBody");
+    if (!allExams.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;
+        color:var(--muted-foreground);">No exams yet. <a href="/admin-panel.html">Create one →</a></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = allExams.map((e, i) => `
+      <tr>
+        <td><span class="q-badge">#${e.id}</span></td>
+        <td><strong>${e.title}</strong></td>
+        <td>⏱️ ${e.durationMinutes} min</td>
+        <td>📊 ${e.totalMarks}</td>
+        <td style="font-size:11px;color:var(--muted-foreground);">
+          ${e.deadline ? e.deadline : "—"}
+        </td>
+        <td>
+          ${e.isPublished
+            ? '<span style="background:var(--success-light);color:#065f46;border:1px solid #6ee7b7;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;">✅ Published</span>'
+            : '<span style="background:var(--surface);color:var(--muted-foreground);border:1px solid var(--border);padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;">Draft</span>'}
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  // ── Open view batch modal ─────────────────────────────────────────────────────
+  async function openViewBatch(batchId) {
+    currentBatch = allBatches.find(b => b.id === batchId);
+    if (!currentBatch) return;
+
+    document.getElementById("viewBatchTitle").textContent = currentBatch.name;
+    document.getElementById("viewBatchSub").textContent   =
+      `Standard ${currentBatch.standard}` +
+      (currentBatch.division ? ` · Division ${currentBatch.division}` : "") +
+      (currentBatch.stream   ? ` · ${currentBatch.stream}` : "");
+
+    openModal("viewBatchModal");
+    document.getElementById("viewStudentList").innerHTML =
+      `<div style="text-align:center;padding:20px;color:var(--muted-foreground);">Loading…</div>`;
+
+    try {
+      const res  = await fetch(
+        `${BASE}/admin/data?action=batchStudents&batchId=${batchId}`,
+        { credentials: "include", headers: { "X-Admin-Id": adminId } }
+      );
+      const data = await res.json();
+      renderBatchStudents(data.students || []);
+    } catch (e) {
+      document.getElementById("viewStudentList").innerHTML =
+        `<div style="color:var(--destructive);text-align:center;">Failed to load.</div>`;
+    }
+  }
+
+  function renderBatchStudents(students) {
+    const list = document.getElementById("viewStudentList");
+    document.getElementById("viewBatchCount").textContent =
+      students.length + " student" + (students.length !== 1 ? "s" : "");
+
+    if (!students.length) {
+      list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted-foreground);">
+        No students in this batch yet.</div>`;
+      return;
+    }
+
+    list.innerHTML = students.map(s => `
+      <div class="student-item">
+        <div class="student-info">
+          <div class="s-name">${s.fullName}</div>
+          <div class="s-roll">🪪 ${s.rollNo} · ${s.email}</div>
+        </div>
+        <button class="btn btn-danger"
+                style="font-size:11px;padding:5px 10px;"
+                onclick="removeStudent(${currentBatch.id}, ${s.id}, '${s.fullName}')">
+          Remove
+        </button>
+      </div>
+    `).join("");
+  }
+
+  // ── Add students modal ────────────────────────────────────────────────────────
+  async function openAddStudentModal() {
+    openModal("addStudentModal");
+    document.getElementById("studentSearch").value = "";
+    document.getElementById("unassignedStudentList").innerHTML =
+      `<div style="text-align:center;padding:20px;">Loading…</div>`;
+
+    try {
+      const res  = await fetch(
+        `${BASE}/admin/data?action=unassigned`,
+        { credentials: "include", headers: { "X-Admin-Id": adminId } }
+      );
+      const data = await res.json();
+      unassigned = data.students || [];
+      renderUnassigned(unassigned);
+    } catch (e) {
+      document.getElementById("unassignedStudentList").innerHTML =
+        `<div style="color:var(--destructive);text-align:center;">Failed to load.</div>`;
+    }
+  }
+
+  function renderUnassigned(students) {
+    const list = document.getElementById("unassignedStudentList");
+    if (!students.length) {
+      list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted-foreground);">
+        No unassigned students found.</div>`;
+      return;
+    }
+    list.innerHTML = students.map(s => `
+      <div class="student-item">
+        <div class="student-info">
+          <div class="s-name">${s.fullName}</div>
+          <div class="s-roll">🪪 ${s.rollNo}</div>
+        </div>
+        <button class="btn btn-primary"
+                style="font-size:11px;padding:5px 12px;"
+                onclick="addStudent(${s.id}, '${s.fullName}', this)">
+          Add
+        </button>
+      </div>
+    `).join("");
+  }
+
+  function filterStudents(q) {
+    const filtered = unassigned.filter(s =>
+      s.fullName.toLowerCase().includes(q.toLowerCase()) ||
+      s.rollNo.toLowerCase().includes(q.toLowerCase())
+    );
+    renderUnassigned(filtered);
+  }
+
+  async function addStudent(studentId, name, btn) {
+    btn.disabled = true; btn.textContent = "Adding…";
+    try {
+      const res  = await fetch(`${BASE}/admin/data?action=addStudent`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Admin-Id": adminId },
+        body: JSON.stringify({ batchId: currentBatch.id, studentId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        btn.textContent = "✓ Added";
+        btn.style.background = "var(--success)";
+        toast(name + " added to batch.", "t-ok");
+        // Refresh batch count
+        loadDashboard();
+      } else {
+        btn.disabled = false; btn.textContent = "Add";
+        toast(data.message, "t-err");
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "Add";
+      toast("Failed to add student.", "t-err");
+    }
+  }
+
+  async function removeStudent(batchId, studentId, name) {
+    if (!confirm(`Remove ${name} from this batch?`)) return;
+    try {
+      const res  = await fetch(`${BASE}/admin/data?action=removeStudent`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Admin-Id": adminId },
+        body: JSON.stringify({ batchId, studentId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast(name + " removed.", "t-ok");
+        openViewBatch(batchId);
+        loadDashboard();
+      } else { toast(data.message, "t-err"); }
+    } catch (e) { toast("Failed.", "t-err"); }
+  }
+
+  // ── Create batch ──────────────────────────────────────────────────────────────
+  async function submitCreateBatch() {
+    const name     = document.getElementById("batchName").value.trim();
+    const standard = document.getElementById("batchStandard").value;
+    const division = document.getElementById("batchDivision").value;
+    const stream   = document.getElementById("batchStream").value;
+    const course   = document.getElementById("batchCourse").value.trim();
+    const year     = document.getElementById("batchYear").value.trim();
+
+    if (!name || !standard) {
+      toast("⚠️ Batch name and standard are required.", "t-err"); return;
+    }
+
+    const fullName = year ? `${name} (${year})` : name;
+
+    try {
+      const res  = await fetch(`${BASE}/admin/data?action=createBatch`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Admin-Id": adminId },
+        body: JSON.stringify({
+          name: fullName, standard, division, stream,
+          course, collegeName: college || adminName
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast("✅ " + data.message, "t-ok");
+        closeModal("createBatchModal");
+        // Reset form
+        ["batchName","batchStandard","batchDivision","batchStream","batchCourse","batchYear"]
+          .forEach(id => document.getElementById(id).value = "");
+        loadDashboard();
+      } else { toast(data.message, "t-err"); }
+    } catch (e) {
+      toast("Cannot reach server.", "t-err");
+    }
+  }
+
+  // ── Delete batch ──────────────────────────────────────────────────────────────
+  async function confirmDeleteBatch(batchId, name) {
+    if (!confirm(`Delete batch "${name}"? This will unassign all students.`)) return;
+    try {
+      const res  = await fetch(`${BASE}/admin/data?action=deleteBatch`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Admin-Id": adminId },
+        body: JSON.stringify({ batchId }),
+      });
+      const data = await res.json();
+      if (data.success) { toast("Batch deleted.", "t-ok"); loadDashboard(); }
+      else toast(data.message, "t-err");
+    } catch (e) { toast("Failed.", "t-err"); }
+  }
+
+  // ── Standard change — show/hide fields ───────────────────────────────────────
+  function onStandardChange() {
+    const v = document.getElementById("batchStandard").value;
+    const showStream = ["11","12","UG","PG"].includes(v);
+    const showCourse = v === "UG";
+    document.getElementById("streamField").style.display = showStream ? "" : "none";
+    document.getElementById("courseField").style.display = showCourse ? "" : "none";
+  }
+
+  // ── Tab switching ─────────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll(".dash-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("tab-" + tab).classList.add("active");
+    document.getElementById("panel-" + tab).classList.add("active");
+  }
+
+  // ── Modal helpers ─────────────────────────────────────────────────────────────
+  function openModal(id) {
+    document.getElementById(id).classList.add("open");
+  }
+  function closeModal(id) {
+    document.getElementById(id).classList.remove("open");
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function toast(msg, type = "t-info") {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.className = "show " + type;
+    clearTimeout(t._t); t._t = setTimeout(() => t.className = "", 3500);
+  }
+
+  // ── Logout ─────────────────────────────────────────────────────────────────
+  function handleLogout() {
+    sessionStorage.clear();
+    fetch(`${BASE}/logout`, { credentials: "include" }).catch(() => {});
+    window.location.href = "/";
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function streamEmoji(s) {
+    return s === "Science" ? "🔬" : s === "Arts" ? "🎨" : "💼";
+  }
+  function shortDate(ds) {
+    if (!ds) return "";
+    return new Date(ds.replace(" ", "T"))
+      .toLocaleDateString("en-IN", {day:"numeric",month:"short",year:"numeric"});
+  }
+</script>
+</body>
+</html>

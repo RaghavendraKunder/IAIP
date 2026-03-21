@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Result — ExamFlow</title>
+  <link rel="stylesheet" href="css/admin-style.css"/>
+  <style>
+    .result-shell {
+      max-width: 600px;
+      margin: 60px auto;
+      padding: 0 24px;
+    }
+
+    /* Result card */
+    .result-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 3);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Top color strip */
+    .result-top {
+      padding: 36px 36px 28px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .result-top.pass {
+      background: linear-gradient(135deg,
+        hsl(160,84%,25%) 0%, hsl(160,74%,35%) 100%);
+    }
+    .result-top.fail {
+      background: linear-gradient(135deg,
+        hsl(243,75%,40%) 0%, hsl(258,60%,50%) 100%);
+    }
+    .result-top::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+    }
+
+    .result-emoji {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+    .result-top h2 {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 1;
+    }
+    .result-top p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Score donut */
+    .score-section {
+      padding: 32px 36px 20px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+    .donut-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      flex-shrink: 0;
+    }
+    .donut-wrap svg {
+      transform: rotate(-90deg);
+    }
+    .donut-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .donut-pct {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .donut-lbl {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted-foreground);
+      margin-top: 2px;
+    }
+
+    .score-details { flex: 1; min-width: 180px; }
+    .score-details h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .score-details p {
+      font-size: 13px;
+      color: var(--muted-foreground);
+      margin-bottom: 14px;
+    }
+
+    /* Grade badge */
+    .grade-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .grade-pass { background: var(--success-light); color: #065f46; border: 1.5px solid #6ee7b7; }
+    .grade-fail { background: var(--destructive-light); color: #991b1b; border: 1.5px solid #fca5a5; }
+
+    /* Stats grid */
+    .result-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 0 36px 28px;
+    }
+    .rs-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 1.5);
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .rs-val {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--foreground);
+      line-height: 1;
+    }
+    .rs-lbl {
+      font-size: 11px;
+      color: var(--muted-foreground);
+      margin-top: 3px;
+      font-weight: 600;
+    }
+
+    /* Divider */
+    .result-divider { height: 1px; background: var(--border); margin: 0 36px; }
+
+    /* Action row */
+    .result-actions {
+      padding: 24px 36px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Confetti */
+    .confetti-piece {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      animation: fall linear forwards;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div style="position:sticky;top:3px;z-index:50;background:var(--card);
+              border-bottom:1px solid var(--border);padding:0 24px;
+              height:56px;display:flex;align-items:center;
+              box-shadow:var(--shadow-sm);">
+    <div class="logo-mark" style="width:32px;height:32px;font-size:13px;">E</div>
+    <div class="logo-text" style="font-size:16px;margin-left:10px;">
+      Exam<span>Flow</span>
+    </div>
+  </div>
+
+  <div class="result-shell">
+
+    <div class="result-card" id="resultCard">
+      <!-- Loading -->
+      <div style="padding:60px;text-align:center;color:var(--muted-foreground);">
+        <div style="font-size:2rem;margin-bottom:12px;">⏳</div>
+        Loading your result…
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const BASE = "http://localhost:8085/Online_Examination_System";
+    const p    = new URLSearchParams(window.location.search);
+
+    // Result data passed via URL params from ResultServlet redirect
+    // OR loaded from sessionStorage if set by JSP
+    const score      = parseInt(p.get("score"))      || 0;
+    const total      = parseInt(p.get("total"))       || 0;
+    const examTitle  = decodeURIComponent(p.get("title") || "Exam");
+    const studentName = sessionStorage.getItem("studentName") || "Student";
+
+    window.addEventListener("DOMContentLoaded", () => {
+      renderResult(score, total, examTitle);
+    });
+
+    function renderResult(score, total, title) {
+      const pct     = total > 0 ? Math.round(score / total * 100) : 0;
+      const passed  = pct >= 40;
+      const grade   = pct >= 90 ? "A+" : pct >= 80 ? "A" : pct >= 70 ? "B"
+                    : pct >= 60 ? "C"  : pct >= 40 ? "D" : "F";
+
+      const circumference = 2 * Math.PI * 54; // r=54
+      const dash          = (pct / 100) * circumference;
+      const color         = passed ? "#10b981" : "#6366f1";
+
+      document.getElementById("resultCard").innerHTML = `
+        <!-- Top banner -->
+        <div class="result-top ${passed ? "pass" : "fail"}">
+          <span class="result-emoji">${passed ? "🎉" : "📚"}</span>
+          <h2>${passed ? "Well Done, " + studentName + "!" : "Keep Going, " + studentName + "!"}</h2>
+          <p>${passed ? "You passed the exam successfully." : "Review and try again next time."}</p>
+        </div>
+
+        <!-- Score + donut -->
+        <div class="score-section">
+          <div class="donut-wrap">
+            <svg width="140" height="140" viewBox="0 0 140 140">
+              <circle cx="70" cy="70" r="54"
+                fill="none" stroke="var(--border)" stroke-width="12"/>
+              <circle cx="70" cy="70" r="54"
+                fill="none" stroke="${color}" stroke-width="12"
+                stroke-dasharray="${dash} ${circumference}"
+                stroke-linecap="round"/>
+            </svg>
+            <div class="donut-center">
+              <span class="donut-pct" style="color:${color};">${pct}%</span>
+              <span class="donut-lbl">SCORE</span>
+            </div>
+          </div>
+
+          <div class="score-details">
+            <h3>${title}</h3>
+            <p>Result for ${studentName}</p>
+            <span class="grade-badge ${passed ? "grade-pass" : "grade-fail"}">
+              ${passed ? "✅ PASSED" : "❌ FAILED"} · Grade: ${grade}
+            </span>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="result-stats">
+          <div class="rs-item">
+            <div class="rs-val">${score}</div>
+            <div class="rs-lbl">Your Score</div>
+          </div>
+          <div class="rs-item">
+            <div class="rs-val">${total}</div>
+            <div class="rs-lbl">Total Marks</div>
+          </div>
+          <div class="rs-item">
+            <div class="rs-val">${grade}</div>
+            <div class="rs-lbl">Grade</div>
+          </div>
+        </div>
+
+        <div class="result-divider"></div>
+
+        <!-- Actions -->
+        <div class="result-actions">
+          <a href="/student-dashboard.html" class="btn btn-primary" style="flex:1;justify-content:center;">
+            ← Back to Dashboard
+          </a>
+          <button onclick="window.print()" class="btn btn-outline" style="flex:1;justify-content:center;">
+            🖨️ Print Result
+          </button>
+        </div>
+      `;
+
+      // Confetti for pass
+      if (passed) launchConfetti();
+    }
+
+    // ── Confetti ─────────────────────────────────────────────────────────
+    function launchConfetti() {
+      const colors = ["#6366f1","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4"];
+      for (let i = 0; i < 80; i++) {
+        const el = document.createElement("div");
+        el.className = "confetti-piece";
+        el.style.cssText = `
+          left: ${Math.random() * 100}vw;
+          top: 0;
+          background: ${colors[Math.floor(Math.random() * colors.length)]};
+          animation-duration: ${1.5 + Math.random() * 2}s;
+          animation-delay: ${Math.random() * 0.8}s;
+          width: ${6 + Math.random() * 6}px;
+          height: ${6 + Math.random() * 6}px;
+        `;
+        document.body.appendChild(el);
+        el.addEventListener("animationend", () => el.remove());
+      }
+    }
+  </script>
+</body>
+</html>
