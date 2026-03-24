@@ -96,6 +96,10 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toggle switch ── */
+    #sendEmailToggle:checked + span { background: var(--primary); }
+    #sendEmailToggle:checked + span #toggleThumb { transform: translateX(22px); }
   </style>
 </head>
 <body>
@@ -212,17 +216,80 @@
 
     <!-- ── PANEL 2: STUDENTS ── -->
     <div class="panel" id="panel-2">
-      <div class="section-title">Student Roster <span class="count-chip" id="studentCountChip">0 students</span></div>
-      <div class="section-sub">Enter each student's name and roll number.</div>
-      <div class="card" style="padding-bottom:20px;">
-        <div id="studentList" class="student-list"></div>
-        <button class="btn-add" onclick="addStudentRow()">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          Add Another Student
+      <div class="section-title">
+        Student Roster
+        <span class="count-chip" id="studentCountChip">0 selected</span>
+      </div>
+      <div class="section-sub">
+        Select registered students or add by email address.
+      </div>
+
+      <!-- ── Tab switcher ── -->
+      <div style="display:flex;gap:8px;margin-bottom:18px;">
+        <button id="tabSelect" onclick="switchTab('select')"
+          class="btn btn-primary" style="flex:1;">
+          ✅ Select Registered Students
+        </button>
+        <button id="tabManual" onclick="switchTab('manual')"
+          class="btn btn-outline" style="flex:1;">
+          📧 Add by Email
         </button>
       </div>
+
+      <!-- ── TAB 1: Select from registered students ── -->
+      <div id="tabSelectPane">
+        <div class="card" style="padding:16px;">
+          <!-- Search -->
+          <div style="position:relative;margin-bottom:14px;">
+            <input type="text" id="studentSearch"
+                   placeholder="🔍 Search by name, roll number or email…"
+                   oninput="filterStudents(this.value)"
+                   style="width:100%;padding:9px 14px;border:1.5px solid var(--border);
+                          border-radius:var(--radius);font-size:13px;font-family:var(--font-body);
+                          outline:none;transition:border-color .2s;"
+                   onfocus="this.style.borderColor='var(--primary)'"
+                   onblur="this.style.borderColor='var(--border)'" />
+          </div>
+
+          <!-- Select All -->
+          <div style="display:flex;align-items:center;justify-content:space-between;
+                      margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;
+                          font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)"
+                     style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"/>
+              Select All
+            </label>
+            <span style="font-size:12px;color:var(--muted-foreground);" id="loadingLabel">
+              Loading students…
+            </span>
+          </div>
+
+          <!-- Student list -->
+          <div id="registeredList" style="max-height:320px;overflow-y:auto;
+               display:flex;flex-direction:column;gap:6px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB 2: Manual email entry ── -->
+      <div id="tabManualPane" style="display:none;">
+        <div class="card" style="padding-bottom:20px;">
+          <div style="font-size:12px;color:var(--muted-foreground);
+                      margin-bottom:14px;line-height:1.6;">
+            Enter the email addresses of students who should have access to this exam.
+            They must be registered with that email to see the exam on their dashboard.
+          </div>
+          <div id="studentList" class="student-list"></div>
+          <button class="btn-add" onclick="addEmailRow()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Add Another Email
+          </button>
+        </div>
+      </div>
+
       <div class="btn-row">
         <button class="btn btn-outline" onclick="goToStep(1)">← Back</button>
         <button class="btn btn-primary" onclick="goToStep(3)">Next — Add Questions →</button>
@@ -266,6 +333,34 @@
         </div>
         <ul class="q-review-list" id="reviewStudents"></ul>
       </div>
+      <!-- Email toggle -->
+      <div class="card" style="margin-top:0;display:flex;align-items:center;
+                               justify-content:space-between;padding:18px 22px;">
+        <div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;">
+            📧 Send Email Notification to Students
+          </div>
+          <div style="font-size:12px;color:var(--muted-foreground);margin-top:3px;">
+            Each enrolled student will receive an email with exam details and a link.
+          </div>
+        </div>
+        <label style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
+          <input type="checkbox" id="sendEmailToggle" checked
+                 style="opacity:0;width:0;height:0;"/>
+          <span onclick="document.getElementById('sendEmailToggle').click()"
+                style="position:absolute;cursor:pointer;inset:0;
+                       background:var(--border);border-radius:999px;
+                       transition:.3s;"
+                id="toggleTrack">
+            <span id="toggleThumb"
+                  style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;
+                         background:#fff;border-radius:50%;transition:.3s;
+                         box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+            </span>
+          </span>
+        </label>
+      </div>
+
       <div class="btn-row">
         <button class="btn btn-outline" onclick="goToStep(3)">← Back</button>
         <button class="btn btn-success" onclick="publishExam()">✓ Publish Exam</button>
