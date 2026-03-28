@@ -328,7 +328,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
 
         setTimeout(() => {
           if (data.role === "admin") {
-            window.location.href = window.location.origin + "/admin-panel.html";
+            window.location.href = window.location.origin + "/admin-dashboard.html";
           } else {
             window.location.href = window.location.origin + "/student-dashboard.html";
           }
