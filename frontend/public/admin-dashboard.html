@@ -941,9 +941,8 @@
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.getElementById("tab-" + tab).classList.add("active");
     document.getElementById("panel-" + tab).classList.add("active");
-    // Load data when tab is clicked
     if (tab === "students") loadAllStudents();
-    if (tab === "exams")    loadExams();
+    if (tab === "exams")    renderExams();
   }
 
   // ── Modal helpers ─────────────────────────────────────────────────────────────
