@@ -1,18 +1,44 @@
 package controller;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dao.EnrollmentDAO;
+import dao.BatchDAO;
+import dao.BatchDAO;
 import dao.ExamDAO;
 import dao.StudentDAO;
-import Model.Student;
+import model.Exam;
+import model.Student;
+import util.EmailUtil;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.*;
 
+/**
+ * PublishExamServlet.java
+ * -----------------------
+ * POST /publish-exam
+ *
+ * JSON body:
+ * {
+ *   "examId":   1,
+ *   "deadline": "2026-03-20 17:00:00",
+ *   "students": [
+ *     { "rollNo": "2024CS001" },
+ *     { "rollNo": "2024CS002" }
+ *   ],
+ *   "sendEmail": true
+ * }
+ *
+ * Does:
+ *   1. Marks exam as published + sets deadline
+ *   2. Enrolls each student by roll number
+ *   3. Sends email notification to each student (if sendEmail=true)
+ */
 @WebServlet("/publish-exam")
 public class PublishExamServlet extends HttpServlet {
 
@@ -20,8 +46,13 @@ public class PublishExamServlet extends HttpServlet {
 
     private final ExamDAO       examDAO       = new ExamDAO();
     private final EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+    private final BatchDAO       batchDAO       = new BatchDAO();
+    private final BatchDAO       batchDAO       = new BatchDAO();
     private final StudentDAO    studentDAO    = new StudentDAO();
     private final Gson          gson          = new Gson();
+
+    private static final String DASHBOARD_URL =
+        "http://localhost:8080/student-dashboard.html";
 
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse res)
@@ -44,50 +75,101 @@ public class PublishExamServlet extends HttpServlet {
             while ((line = reader.readLine()) != null) sb.append(line);
         }
 
-        System.out.println("[PublishExamServlet] body=" + sb.toString());
+        System.out.println("[PublishExamServlet] body=" + sb);
 
         JsonObject body;
         try {
             body = JsonParser.parseString(sb.toString()).getAsJsonObject();
         } catch (Exception e) {
-            writeJson(res, false, "Invalid JSON: " + e.getMessage(), 0, 0); return;
-        }
-
-        int    examId   = body.has("examId")   ? body.get("examId").getAsInt()      : -1;
-        String deadline = body.has("deadline") && !body.get("deadline").isJsonNull()
-                          ? body.get("deadline").getAsString() : null;
-
-        System.out.println("[PublishExamServlet] examId=" + examId + " deadline=" + deadline);
-
-        if (examId < 1) {
-            writeJson(res, false, "Invalid exam ID: " + examId, 0, 0); return;
-        }
-
-        // ── 1. Publish exam ───────────────────────────────────────────────────
-        try {
-            examDAO.publishExam(examId, deadline);
-            System.out.println("[PublishExamServlet] Exam published OK");
-        } catch (Exception e) {
-            e.printStackTrace();
-            writeJson(res, false, "Failed to publish: " + e.getMessage(), 0, 0);
+            writeJson(res, false, "Invalid JSON: " + e.getMessage(), 0, 0, 0);
             return;
         }
 
-        // ── 2. Enroll students ────────────────────────────────────────────────
-        int enrolled = 0;
-        int notFound = 0;
+        int     examId    = body.has("examId")    ? body.get("examId").getAsInt()       : -1;
+        String  deadline  = body.has("deadline") && !body.get("deadline").isJsonNull()
+                            ? body.get("deadline").getAsString() : null;
+        boolean sendEmail = body.has("sendEmail") && body.get("sendEmail").getAsBoolean();
+
+        if (examId < 1) {
+            writeJson(res, false, "Invalid exam ID.", 0, 0, 0); return;
+        }
+
+        // ── 1. Publish exam ───────────────────────────────────────────────────
+        Exam exam;
+        try {
+            examDAO.publishExam(examId, deadline);
+            exam = examDAO.getExamById(examId);
+            System.out.println("[PublishExamServlet] Exam published: " + examId);
+        } catch (Exception e) {
+            e.printStackTrace();
+            writeJson(res, false, "Failed to publish: " + e.getMessage(), 0, 0, 0);
+            return;
+        }
+
+        // ── 2. Enroll students + send emails ──────────────────────────────────
+        int enrolled  = 0;
+        int notFound  = 0;
+        int emailSent = 0;
+
+        // ── 2a. Enroll entire batch if batchId provided ───────────────────────
+        int batchId = body.has("batchId") && !body.get("batchId").isJsonNull()
+                    ? body.get("batchId").getAsInt() : 0;
+        if (batchId > 0) {
+            try {
+                java.util.List<model.Student> batchStudents =
+                    batchDAO.getStudentsInBatch(batchId);
+                System.out.println("[PublishExamServlet] Enrolling batch " + batchId
+                    + " → " + batchStudents.size() + " students");
+                for (model.Student s : batchStudents) {
+                    enrollmentDAO.enroll(examId, s.getId());
+                    enrolled++;
+                }
+            } catch (Exception e) {
+                System.err.println("[PublishExamServlet] Batch enroll error: "
+                    + e.getMessage());
+            }
+        }
 
         if (body.has("students") && body.get("students").isJsonArray()) {
-            for (var el : body.getAsJsonArray("students")) {
+            JsonArray arr = body.getAsJsonArray("students");
+
+            for (var el : arr) {
+                // Support both rollNo and email
                 String rollNo = el.getAsJsonObject().has("rollNo")
                         ? el.getAsJsonObject().get("rollNo").getAsString().trim() : "";
-                if (rollNo.isEmpty()) continue;
+                String email  = el.getAsJsonObject().has("email")
+                        ? el.getAsJsonObject().get("email").getAsString().trim()  : "";
+
+                if (rollNo.isEmpty() && email.isEmpty()) continue;
+
                 try {
-                    Student student = studentDAO.findByRollNo(rollNo);
+                    Student student = !rollNo.isEmpty()
+                            ? studentDAO.findByRollNo(rollNo)
+                            : studentDAO.findByEmail(email);
                     if (student != null) {
+                        // Enroll
                         enrollmentDAO.enroll(examId, student.getId());
                         enrolled++;
                         System.out.println("[PublishExamServlet] Enrolled: " + rollNo);
+
+                        // Send email notification
+                        if (sendEmail && student.getEmail() != null
+                                && !student.getEmail().isEmpty()) {
+                            try {
+                                EmailUtil.sendExamNotification(
+                                    student.getEmail(),
+                                    student.getFullName(),
+                                    exam.getTitle(),
+                                    exam.getDurationMinutes(),
+                                    deadline,
+                                    DASHBOARD_URL
+                                );
+                                emailSent++;
+                            } catch (Exception emailErr) {
+                                System.err.println("[PublishExamServlet] Email failed for "
+                                    + student.getEmail() + ": " + emailErr.getMessage());
+                            }
+                        }
                     } else {
                         notFound++;
                         System.out.println("[PublishExamServlet] Not found: " + rollNo);
@@ -99,20 +181,23 @@ public class PublishExamServlet extends HttpServlet {
         }
 
         String msg = "Exam published!";
-        if (enrolled > 0) msg += " " + enrolled + " student(s) enrolled.";
-        if (notFound  > 0) msg += " " + notFound + " roll number(s) not found.";
+        if (enrolled  > 0) msg += " " + enrolled  + " student(s) enrolled.";
+        if (notFound  > 0) msg += " " + notFound   + " roll number(s) not found.";
+        if (emailSent > 0) msg += " 📧 " + emailSent + " email(s) sent.";
 
-        writeJson(res, true, msg, enrolled, notFound);
+        writeJson(res, true, msg, enrolled, notFound, emailSent);
     }
 
     private void writeJson(HttpServletResponse res,
                            boolean success, String message,
-                           int enrolled, int notFound) throws IOException {
+                           int enrolled, int notFound, int emailSent)
+            throws IOException {
         JsonObject json = new JsonObject();
-        json.addProperty("success",  success);
-        json.addProperty("message",  message);
-        json.addProperty("enrolled", enrolled);
-        json.addProperty("notFound", notFound);
+        json.addProperty("success",   success);
+        json.addProperty("message",   message);
+        json.addProperty("enrolled",  enrolled);
+        json.addProperty("notFound",  notFound);
+        json.addProperty("emailSent", emailSent);
         res.setStatus(success ? 200 : 400);
         res.getWriter().write(gson.toJson(json));
     }

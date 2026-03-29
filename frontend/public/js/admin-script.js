@@ -71,9 +71,10 @@ function goToStep(n) {
   });
   window.scrollTo({ top: 0, behavior: "smooth" });
 
-  // Load college students when Step 2 opens
-  if (n === 2 && allRegisteredStudents.length === 0) {
-    loadRegisteredStudents();
+  // Load college students + batches when Step 2 opens
+  if (n === 2) {
+    if (allRegisteredStudents.length === 0) loadRegisteredStudents();
+    loadBatchesForSelector();
   }
 }
 
@@ -95,6 +96,50 @@ function switchTab(tab) {
   document.getElementById("tabManualPane").style.display = isSelect ? "none"  : "block";
   document.getElementById("tabSelect").className = isSelect ? "btn btn-primary" : "btn btn-outline";
   document.getElementById("tabManual").className = isSelect ? "btn btn-outline" : "btn btn-primary";
+}
+
+// ── Load batches for the exam batch selector ────────────────────────────────
+async function loadBatchesForSelector() {
+  var select = document.getElementById("batchSelect");
+  if (!select) return;
+  try {
+    var res  = await fetch(BASE + "/admin/data?action=batches", {
+      credentials: "include",
+      headers: { "X-Admin-Id": getAdminId(), "X-College-Name": getCollegeName() }
+    });
+    var data = await res.json();
+    if (!data.success) return;
+    var batches = data.batches || [];
+    // Reset options
+    select.innerHTML = "<option value=''>— No batch, add students manually below —</option>";
+    batches.forEach(function(b) {
+      var opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.name +
+        " (" + b.standard + (b.division ? " Div-" + b.division : "") +
+        (b.stream ? " · " + b.stream : "") + ")" +
+        " — " + b.studentCount + " student" + (b.studentCount !== 1 ? "s" : "");
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("loadBatchesForSelector error:", e);
+  }
+}
+
+function onBatchSelect(batchId) {
+  var info  = document.getElementById("batchInfo");
+  var count = document.getElementById("batchStudentCount");
+  if (batchId) {
+    var opt = document.querySelector("#batchSelect option[value='" + batchId + "']");
+    if (opt) {
+      var match = opt.textContent.match(/(\d+) student/);
+      if (match) count.textContent = "👥 " + match[1] + " students will be enrolled";
+    }
+    if (info) info.style.display = "block";
+  } else {
+    if (info)  info.style.display  = "none";
+    if (count) count.textContent = "";
+  }
 }
 
 // ── Load students filtered by admin's college ─────────────────────────────────
@@ -669,11 +714,12 @@ async function publishExam() {
   setOverlayMsg("Step 3 of 3 — Publishing to " + students.length + " student(s)…");
   try {
     var payload = {
-      examId:     examId,
-      deadline:   deadline,
-      students:   students,
-      sendEmail:  sendEmail,
-      collegeName: getCollegeName()
+      examId:      examId,
+      deadline:    deadline,
+      students:    students,
+      sendEmail:   sendEmail,
+      collegeName: getCollegeName(),
+      batchId:     batchId
     };
     var r3 = await fetch(BASE + "/publish-exam", {
       method: "POST", credentials: "include",
@@ -716,6 +762,12 @@ function resetAll() {
   allRegisteredStudents = [];
   allGroupedStudents    = {};
   selectedStudentIds.clear();
+  var bSelect = document.getElementById('batchSelect');
+  if (bSelect) { bSelect.innerHTML = '<option value="">— No batch, add students manually below —</option>'; }
+  var bInfo = document.getElementById('batchInfo');
+  if (bInfo) bInfo.style.display = 'none';
+  var bCount = document.getElementById('batchStudentCount');
+  if (bCount) bCount.textContent = '';
   var regList = document.getElementById("registeredList");
   if (regList) regList.innerHTML = "";
   var loadLabel = document.getElementById("loadingLabel");

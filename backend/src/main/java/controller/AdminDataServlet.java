@@ -2,7 +2,7 @@ package controller;
 
 import com.google.gson.*;
 import dao.*;
-import Model.*;
+import model.*;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -51,9 +51,10 @@ public class AdminDataServlet extends HttpServlet {
 
         try {
             switch (action) {
-                case "dashboard" -> handleDashboard(req, res, adminId);
-                case "batchStudents" -> handleBatchStudents(req, res, adminId);
-                case "unassigned" -> handleUnassigned(req, res, adminId);
+                case "dashboard"    -> handleDashboard(req, res, adminId);
+                case "batchStudents"-> handleBatchStudents(req, res, adminId);
+                case "unassigned"   -> handleUnassigned(req, res, adminId);
+                case "batches"      -> handleGetBatches(req, res, adminId);
                 default -> writeError(res, "Unknown action");
             }
         } catch (Exception e) {
@@ -175,24 +176,65 @@ public class AdminDataServlet extends HttpServlet {
         res.getWriter().write(gson.toJson(resp));
     }
 
+    // ── Get batches for admin (used by exam panel batch selector) ─────────────
+    private void handleGetBatches(HttpServletRequest req,
+                                   HttpServletResponse res, int adminId)
+            throws Exception {
+        List<Batch> batches = batchDAO.getBatchesByAdmin(adminId);
+        JsonObject resp = new JsonObject();
+        resp.addProperty("success", true);
+        JsonArray arr = new JsonArray();
+        for (Batch b : batches) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("id",           b.getId());
+            obj.addProperty("name",         b.getName());
+            obj.addProperty("standard",     b.getStandard());
+            obj.addProperty("stream",       b.getStream()    != null ? b.getStream()    : "");
+            obj.addProperty("division",     b.getDivision()  != null ? b.getDivision()  : "");
+            obj.addProperty("course",       b.getCourse()    != null ? b.getCourse()    : "");
+            obj.addProperty("studentCount", b.getStudentCount());
+            arr.add(obj);
+        }
+        resp.add("batches", arr);
+        res.getWriter().write(gson.toJson(resp));
+    }
+
     // ── Unassigned students ───────────────────────────────────────────────────
     private void handleUnassigned(HttpServletRequest req,
                                    HttpServletResponse res, int adminId)
             throws Exception {
-        String college = getCollegeName(req, adminId);
-        System.out.println("[AdminDataServlet] unassigned: college='" + college + "' adminId=" + adminId);
+        String college   = getCollegeName(req, adminId);
+        int    collegeId = getCollegeIdByName(college);
+
+        System.out.println("[AdminDataServlet] unassigned: college='" + college
+            + "' collegeId=" + collegeId);
+
         List<Student> students = batchDAO.getUnassignedStudents(college);
-        System.out.println("[AdminDataServlet] unassigned: found " + students.size() + " students");
+
+        // If collegeId found, also include students linked by college_id
+        if (collegeId > 0) {
+            List<Student> byId = studentDAO.getStudentsByCollegeId(collegeId);
+            // Add those not already in the list and not in a batch
+            for (Student s : byId) {
+                boolean alreadyIn = students.stream()
+                    .anyMatch(x -> x.getId() == s.getId());
+                if (!alreadyIn) students.add(s);
+            }
+        }
+
+        System.out.println("[AdminDataServlet] unassigned: found "
+            + students.size() + " students");
+
         JsonObject resp = new JsonObject();
         resp.addProperty("success", true);
-        resp.addProperty("debug_college", college); // temp debug
         JsonArray arr = new JsonArray();
         for (Student s : students) {
             JsonObject obj = new JsonObject();
-            obj.addProperty("id",       s.getId());
-            obj.addProperty("fullName", s.getFullName());
-            obj.addProperty("rollNo",   s.getRollNo());
-            obj.addProperty("email",    s.getEmail());
+            obj.addProperty("id",         s.getId());
+            obj.addProperty("fullName",   s.getFullName());
+            obj.addProperty("rollNo",     s.getRollNo());
+            obj.addProperty("email",      s.getEmail());
+            obj.addProperty("classLevel", s.getClassLevel() != null ? s.getClassLevel() : "");
             arr.add(obj);
         }
         resp.add("students", arr);
